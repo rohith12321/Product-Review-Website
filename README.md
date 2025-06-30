@@ -18,7 +18,6 @@ Backend setup:
 
 Frontend setup:
 - Used Vite to start React project in `frontend` ->  npm create vite@latest
-- Set project name as product-review-frontend
 - Installed dependencies -> cd product-review-frontend
 - npm install
 - Verified that `npm run dev` runs the frontend on localhost
