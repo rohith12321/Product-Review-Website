@@ -40,6 +40,9 @@ mongoose.connect('mongodb+srv://vishal10992021:FJTBWV98N1Gk05dG@cluster0.nchvnmv
 app.post('/api/review', async (req, res) => {
     try {
         const { productId, review, rating } = req.body;
+        if(!productId || !review || !rating){
+            return res.status(400).json({ success: false,message :"All fieds are required"});
+        }
         const newReview = await Review.create({ productId, review, rating });
         res.json({ success: true, message: "Review submitted successfully!", data: newReview });
     } catch (err) {
@@ -84,6 +87,9 @@ app.put('/api/review/:id', async (req, res) => {
 app.post('/api/products', async (req, res) => {
     try {
         const { name, description, price } = req.body;
+        if(!name || !price){
+            return res.status(400).json({ success: false, message:"Name and price are required"});
+        }
         const newProduct = await Product.create({ name, description, price });
         res.json({ success: true, message: "Product created successfully", data: newProduct });
     } catch (err) {
