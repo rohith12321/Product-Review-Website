@@ -17,6 +17,7 @@ const requireLogin = (req, res, next) => {
     next();
 };
 
+
 mongoose.connect('mongodb+srv://vishal10992021:FJTBWV98N1Gk05dG@cluster0.nchvnmv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
     .then(() => {
         console.log("✅ MongoDB Connected");
@@ -27,6 +28,46 @@ mongoose.connect('mongodb+srv://vishal10992021:FJTBWV98N1Gk05dG@cluster0.nchvnmv
     .catch((err) => {
         console.error("❌ MongoDB Connection Failed:", err);
     });
+
+    // DEMO to check product
+app.get('/api/test/add-product', async (req, res) => {
+    try {
+        const product = await Product.create({
+            name: "iPhone 15 Pro Max",
+            description: "Apple flagship phone with A17 chip",
+            price: 1399,
+            imageUrl: "https://example.com/iphone15.jpg",
+            buyLinks: [
+                "https://amazon.in/iphone15",
+                "https://flipkart.com/iphone15"
+            ]
+        });
+        res.json({ success: true, message: "Product added", data: product });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error adding product", error: err.message });
+    }
+});
+
+
+app.get('/api/products/search', async (req, res) => {
+    try {
+        const query = req.query.query || "";
+        const regex = new RegExp(query, 'i');
+
+        const products = await Product.find({
+            $or: [
+                { name: { $regex: regex } },
+                { description: { $regex: regex } }
+            ]
+        });
+
+        res.json({ success: true, total: products.length, data: products });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error searching products", error: err.message });
+    }
+});
+
+
 
 app.post('/api/products/:productId/review', requireLogin, async (req, res) => {
     const { review, rating } = req.body;
