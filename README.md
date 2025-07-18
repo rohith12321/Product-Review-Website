@@ -22,7 +22,3 @@ Frontend setup:
 - npm install
 - Verified that `npm run dev` runs the frontend on localhost
 
-
-Created a MONGODB database which stores information about the products, users and the reviews under each project. 
-For now we use a dummy user and dummy product to test if we are able to add reviews and actually view all the user reviews. Made the pathways for the major functionalities using Express.
-
