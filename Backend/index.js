@@ -6,37 +6,59 @@ const User = require('./models/User');
 const scrapeFlipkart = require('./scrapers/scrapeFlipkart');
 const scrapeAmazon = require('./scrapers/scrapeAmazon');
 const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
 const port = 5000;
-app.use(cors());
 app.use(express.json());
 
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      'http://localhost:5173',
+    ];
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+
+
 const requireLogin = async (req, res, next) => {
-    const username = req.headers['x-username'];
-    if (!username) {
-        return res.status(401).json({ success: false, message: "Not logged in. Username required in header." });
-    }
+  const username = req.headers['x-username'];
+  if (!username) {
+    return res.status(401).json({ success: false, message: "Not logged in. Username required in header." });
+  }
 
-    const user = await User.findOne({ username });
-    if (!user) {
-        return res.status(401).json({ success: false, message: "Invalid user." });
-    }
+  const user = await User.findOne({ username });
+  if (!user) {
+    return res.status(401).json({ success: false, message: "Invalid user." });
+  }
 
-    req.user = { username };
-    next();
+  req.user = { username };
+  next();
 };
 
 mongoose.connect('mongodb+srv://vishal10992021:FJTBWV98N1Gk05dG@cluster0.nchvnmv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
-    .then(() => {
-        console.log("✅ MongoDB Connected");
-        app.listen(port, () => {
-            console.log(`🚀 Server listening on port ${port}`);
-        });
-    })
-    .catch((err) => {
-        console.error("❌ MongoDB Connection Failed:", err);
+  .then(() => {
+    console.log("✅ MongoDB Connected");
+    app.listen(port, () => {
+      console.log(`🚀 Server listening on port ${port}`);
     });
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB Connection Failed:", err);
+  });
 
 app.post('/api/signup', async (req, res) => {
     const { username, password } = req.body;
@@ -50,28 +72,25 @@ app.post('/api/signup', async (req, res) => {
     }
 
     await User.create({ username, password });
-    res.json({ success: true, message: "User registered successfully!" });
+    res.status(200).json({ success: true, message: "User registered successfully!", user: { username } });
+
 });
 
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ success: false, message: "Username and password required" });
-    }
+  const { username, password } = req.body;
 
-    const user = await User.findOne({ username, password });
-    if (!user) {
-        return res.status(401).json({ success: false, message: "Invalid username or password" });
-    }
+  const user = await User.findOne({ username });
+  if (!user || user.password !== password)
+    return res.status(401).json({ error: 'Invalid credentials' });
 
-    res.json({ success: true, message: "Login successful", username });
+  res.status(200).json({ success: true, message: 'Login successful', user: { username: user.username } });
 });
 
 app.get('/api/products/search', async (req, res) => {
   const { q } = req.query;
   try {
     const products = await Product.find({
-      name: { $regex: q, $options: 'i' } // case-insensitive search
+      name: { $regex: q, $options: 'i' }
     });
     res.json(products);
   } catch (err) {
@@ -81,88 +100,130 @@ app.get('/api/products/search', async (req, res) => {
 
 
 app.post('/api/products/:productId/review', requireLogin, async (req, res) => {
-    const { review, rating } = req.body;
-    const { productId } = req.params;
+  const { review, rating } = req.body;
+  const { productId } = req.params;
+  const username = req.user.username;
 
-    if (!review || !rating) {
-        return res.status(400).json({ success: false, message: "Review and rating are required." });
+  try {
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    try {
-        const product = await Product.findById(productId);
-        if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    const newReview = { username, review, rating };
+    product.reviews.custom.push(newReview);
+    await product.save();
 
-        product.reviews.custom.push({
-            username: req.user.username,
-            review,
-            rating
-        });
-
-        await product.save();
-        res.json({ success: true, message: "Review added successfully!" });
-    } catch (err) {
-        res.status(500).json({ success: false, message: "Error adding review", error: err.message });
-    }
+    res.json({ success: true, message: 'Review added', review: newReview });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to add review', error: err.message });
+  }
 });
 
-app.get('/api/products/:productId/reviews', async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.productId);
-        if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
-        res.json({ success: true, total: product.reviews.length, data: product.reviews });
+
+app.get('/api/products/:productId/reviews', async (req, res) => {
+    const { productId } = req.params;
+    try {
+        const product = await Product.findById(productId);
+        if (!product) return res.status(404).json({ message: 'Product not found' });
+
+        res.json({ reviews: product.reviews });
     } catch (err) {
-        res.status(500).json({ success: false, message: "Error fetching reviews", error: err.message });
+        res.status(500).json({ error: 'Failed to fetch reviews' });
     }
 });
 
 app.delete('/api/products/:productId/review/:reviewId', requireLogin, async (req, res) => {
-    try {
-        const { productId, reviewId } = req.params;
-        const product = await Product.findById(productId);
+  try {
+    const { productId, reviewId } = req.params;
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
-        if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    const reviewIndex = product.reviews.custom.findIndex(r => r._id.toString() === reviewId);
+    if (reviewIndex === -1) return res.status(404).json({ success: false, message: "Review not found" });
 
-        const review = product.reviews.id(reviewId);
-        if (!review) return res.status(404).json({ success: false, message: "Review not found" });
-
-        if (review.username !== req.user.username) {
-            return res.status(403).json({ success: false, message: "Not authorized to delete this review" });
-        }
-
-        review.remove();
-        await product.save();
-
-        res.json({ success: true, message: "Review deleted successfully" });
-    } catch (err) {
-        res.status(500).json({ success: false, message: "Error deleting review", error: err.message });
+    const review = product.reviews.custom[reviewIndex];
+    if (review.username !== req.user.username) {
+      return res.status(403).json({ success: false, message: "Not authorized to delete this review" });
     }
+
+    product.reviews.custom.splice(reviewIndex, 1);
+    await product.save();
+
+    res.json({ success: true, message: "Review deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Error deleting review", error: err.message });
+  }
 });
 
+app.put('/api/products/:productId/review/:reviewId', requireLogin, async (req, res) => {
+  const { productId, reviewId } = req.params;
+  const { review, rating } = req.body;
+
+  try {
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+    const targetReview = product.reviews.custom.find(r => r._id.toString() === reviewId);
+    if (!targetReview) return res.status(404).json({ success: false, message: "Review not found" });
+
+    if (targetReview.username !== req.user.username)
+      return res.status(403).json({ success: false, message: "Not authorized to edit this review" });
+
+    targetReview.review = review;
+    targetReview.rating = rating;
+
+    await product.save();
+    res.json({ success: true, message: "Review updated successfully", review: targetReview });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Error updating review", error: err.message });
+  }
+});
+
+
+
 app.get('/api/user/reviews', requireLogin, async (req, res) => {
-    try {
-        const products = await Product.find({ 'reviews.username': req.user.username });
+  try {
+    const username = req.user.username;
 
-        const userReviews = [];
+    const products = await Product.find({});
 
-        for (const product of products) {
-            const matchingReviews = product.reviews
-                .filter(r => r.username === req.user.username)
-                .map(r => ({
-                    reviewId: r._id,
-                    productId: product._id,
-                    productName: product.name,
-                    review: r.review,
-                    rating: r.rating,
-                    createdAt: r.createdAt
-                }));
-            userReviews.push(...matchingReviews);
-        }
+    const userReviews = [];
 
-        res.json({ success: true, total: userReviews.length, data: userReviews });
-    } catch (err) {
-        res.status(500).json({ success: false, message: "Error fetching user's reviews", error: err.message });
+    for (const product of products) {
+      if (!product.reviews || !product.reviews.custom)  continue;
+
+      const matchingReviews = product.reviews.custom
+        .filter(r => r.username === username)
+        .map(r => ({
+            _id: r._id,
+            productId: product._id,
+            productName: product.name,
+            review: r.review,
+            rating: r.rating
+        }));
+      userReviews.push(...matchingReviews);
     }
+
+    res.json({ success: true, total: userReviews.length, data: userReviews });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error fetching user's reviews", error: err.message });
+  }
+});
+
+
+
+
+app.get('/api/products/:id', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch product' });
+  }
 });
 
 app.post('/api/products/:productId/fullDetails', async (req, res) => {

@@ -1,0 +1,40 @@
+.your-reviews-container {
+  padding: 2rem;
+  max-width: 800px;
+  margin: auto;
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.review-card {
+  display: flex;
+  background-color: #f9f9f9;
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.1);
+}
+
+.review-card img {
+  width: 100px;
+  height: auto;
+  margin-right: 1rem;
+  object-fit: contain;
+}
+
+.review-details h3 {
+  margin: 0;
+}
+
+.review-details p {
+  margin: 0.2rem 0;
+}
+
+.review-details a {
+  color: blue;
+  text-decoration: underline;
+  font-size: 0.9rem;
+}

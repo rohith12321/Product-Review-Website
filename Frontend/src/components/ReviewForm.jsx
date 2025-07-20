@@ -17,13 +17,17 @@ function ReviewForm({ onReviewAdded }) {
     }
 
     try {
-      const res = await fetch(`http://localhost:5000/api/products/${productId}/review`, {
+      const res = await fetch(`${import.meta.env.REACT_APP_API_URL}/api/products/${productId}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ review: review.trim(), rating }),
       });
 
-      if (!res.ok) throw new Error('Review submission failed');
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        throw new Error('Review submission failed');
+      }
 
       setReview('');
       setRating(5);

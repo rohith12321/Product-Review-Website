@@ -1,0 +1,21 @@
+.star-rating {
+  display: flex;
+  gap: 6px;
+  font-size: 24px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.star-rating span {
+  transition: color 0.2s ease;
+}
+
+.star-rating span.filled {
+  color: #ffc107; /* gold */
+}
+
+.star-rating span:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.5);
+  border-radius: 4px;
+}
