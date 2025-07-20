@@ -20,14 +20,12 @@ def get_html(url):
         response.raise_for_status()
         return response.text
     except Exception as e:
-        print(f"Error fetching URL: {e}", file=sys.stderr)
+        print(f"[Flipkart] Error fetching URL: {e}", file=sys.stderr)
         return None
 
 def get_soup(url):
     html = get_html(url)
-    if html:
-        return BeautifulSoup(html, 'html.parser')
-    return None
+    return BeautifulSoup(html, 'html.parser') if html else None
 
 def scrape_flipkart_details(url):
     soup = get_soup(url)
@@ -38,16 +36,13 @@ def scrape_flipkart_details(url):
 
     for tag in soup.find_all("p", class_="_2NsDsF AwS1CA"):
         text = tag.get_text(strip=True)
-        if text: names.append(text)
+        if text:
+            names.append(text)
 
     for tag in soup.find_all("div", class_="ZmyHeo"):
-        text = tag.get_text(strip=True)
+        text = tag.get_text(strip=True).replace("READ MORE", "").strip()
         if text:
-            clean_text = text.replace("READ MORE", "").strip()
-            if clean_text:
-                reviews.append(clean_text)
-
-
+            reviews.append(text)
 
     rating_tags = soup.find_all("div", class_="XQDdHH Ga3i8K") or soup.find_all("div", class_="Rza2QY")
     for tag in rating_tags:
@@ -65,13 +60,13 @@ def scrape_flipkart_details(url):
             pass
 
     flipkart_price = None
-    price_tag = soup.find("div", class_="Nx9bqj CxhGGd")
+    price_tag = soup.select_one("div.Nx9bqj.CxhGGd")
     if price_tag:
         try:
             price_text = price_tag.get_text(strip=True).replace("₹", "").replace(",", "")
-            flipkart_price = int(price_text)
-        except:
-            pass
+            flipkart_price = int(float(price_text))
+        except Exception as e:
+            print(f"[Flipkart] Failed to parse price: {e}", file=sys.stderr)
 
     n = min(len(names), len(reviews), len(ratings))
     scraped_reviews = []
@@ -79,7 +74,8 @@ def scrape_flipkart_details(url):
         scraped_reviews.append({
             "username": names[i],
             "review": reviews[i],
-            "rating": ratings[i]
+            "rating": ratings[i],
+            "source": "flipkart"
         })
 
     return scraped_reviews, avg_rating, flipkart_price
@@ -87,42 +83,43 @@ def scrape_flipkart_details(url):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print(json.dumps({"success": False, "message": "Usage: python script.py <product_id> <flipkart_url>"}))
+        print(json.dumps({
+            "success": False,
+            "message": "Usage: python script.py <product_id> <flipkart_url>"
+        }))
         sys.exit(1)
 
     product_id, url = sys.argv[1], sys.argv[2]
-    soup = get_soup(url)
-    if not soup:
-        print(json.dumps({"success": False, "message": "Failed to load page"}))
-        sys.exit(1)
-
     reviews, avg_rating, price = scrape_flipkart_details(url)
-
-    if not reviews:
-        print(json.dumps({
-            "success": False,
-            "message": "No reviews scraped"
-        }))
-        sys.exit(0)
 
     try:
         client = MongoClient("mongodb+srv://vishal10992021:FJTBWV98N1Gk05dG@cluster0.nchvnmv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
         db = client["test"]
         collection = db["products"]
 
-        update_data = {
-            "$push": {"reviews.flipkart": {"$each": reviews}},
-            "$set": {}
+        update_query = {
+            "$set": {},
         }
 
-        if avg_rating is not None:
-            update_data["$set"]["flipkartAvgRating"] = avg_rating
         if price is not None:
-            update_data["$set"]["prices.flipkart"] = price 
+            update_query["$set"]["prices.flipkart"] = price
+        if avg_rating is not None:
+            update_query["$set"]["flipkartAvgRating"] = avg_rating
+        if reviews:
+            update_query["$push"] = {
+                "reviews.flipkart": {
+                    "$each": [
+                        {
+                            "username": r["username"],
+                            "comment": r["review"],
+                            "rating": r["rating"]
+                        } for r in reviews
+                    ]
+                }
+            }
 
-        result = collection.update_one({"_id": ObjectId(product_id)}, update_data)
+        collection.update_one({ "_id": ObjectId(product_id) }, update_query)
 
-        print(f"Inserted {len(reviews)} reviews, avg rating {avg_rating}, and price ₹{price} into product {product_id}.")
         print(json.dumps({
             "success": True,
             "price": price,

@@ -32,7 +32,6 @@ function ProductPage() {
       return;
     }
 
-
     try {
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/products/${id}/review`, {
         method: 'POST',

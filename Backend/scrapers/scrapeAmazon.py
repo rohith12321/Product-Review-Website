@@ -79,7 +79,6 @@ def scrape_amazon_details(url):
 
     return scraped_reviews, avg_rating, amazon_price, image_url
 
-# Run the scraper and update DB
 if __name__ == "__main__":
     try:
         product_id = sys.argv[1]

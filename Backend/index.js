@@ -3,8 +3,6 @@ const mongoose = require('mongoose');
 const { spawn } = require('child_process');
 const Product = require('./models/Product');
 const User = require('./models/User');
-const scrapeFlipkart = require('./scrapers/scrapeFlipkart');
-const scrapeAmazon = require('./scrapers/scrapeAmazon');
 const cors = require('cors');
 require('dotenv').config();
 
